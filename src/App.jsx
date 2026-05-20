@@ -19,7 +19,7 @@ import Profile from "./pages/Profile";
 import "./styles/global.css";
 
 // ─── Backend API base URL ────────────────────────────────────────
-const API = "http://localhost:5000/api";
+const API = "http://localhost:7000/api";
 
 // ─── Helper: get token from localStorage ────────────────────────
 const getToken = () => localStorage.getItem("token");

@@ -1,71 +1,272 @@
 const express = require("express");
 const cors = require("cors");
-const seedMedicines = require("./data/medicines");
+const path = require("path");
+require("dotenv").config();
+
+const connectDB = require("./config/db");
+const seedMedicines = require("./seed/medicinesSeed");
+
+// Routes
+const authRoutes = require("./routes/auth");
+const medicineRoutes = require("./routes/medicines");
+const orderRoutes = require("./routes/orders");
+const profileRoutes = require("./routes/profile");
+const prescriptionRoutes = require("./routes/prescriptions");
+
+// Middleware
+const { protect } = require("./middleware/authMiddleware");
+
+// Models
+const User = require("./models/User");
 
 const app = express();
-const PORT = process.env.PORT || 5000;
 
+const PORT = process.env.PORT || 7000;
+
+// ======================
+// CONNECT DATABASE
+// ======================
+connectDB()
+  .then(async () => {
+    console.log("MongoDB connected");
+
+    try {
+      await seedMedicines();
+      console.log("Medicines seeded successfully!");
+    } catch (error) {
+      console.log("Medicine seed error:", error);
+    }
+  })
+  .catch((error) => {
+    console.log("MongoDB connection error:", error);
+  });
+
+// ======================
+// MIDDLEWARES
+// ======================
 app.use(cors());
+
 app.use(express.json());
 
-let medicines = [...seedMedicines];
+app.use(express.urlencoded({ extended: true }));
 
-app.get("/api/health", (_req, res) => {
-  res.json({ status: "ok" });
+// ======================
+// STATIC UPLOADS
+// ======================
+app.use(
+  "/uploads",
+  express.static(path.join(__dirname, "uploads"))
+);
+
+// ======================
+// HEALTH ROUTE
+// ======================
+app.get("/api/health", (req, res) => {
+  res.json({
+    status: "ok",
+    message: "MediNest Backend Running",
+  });
 });
 
-app.get("/api/medicines", (_req, res) => {
-  res.json(medicines);
-});
+// ======================
+// API ROUTES
+// ======================
+app.use("/api/auth", authRoutes);
 
-app.get("/api/medicines/:id", (req, res) => {
-  const medicine = medicines.find((item) => item.id === Number(req.params.id));
-  if (!medicine) {
-    return res.status(404).json({ message: "Medicine not found" });
+app.use("/api/medicines", medicineRoutes);
+
+app.use("/api/orders", orderRoutes);
+
+app.use("/api/profile", profileRoutes);
+
+app.use("/api/prescriptions", prescriptionRoutes);
+
+// ======================
+// CART ROUTES
+// ======================
+
+// GET CART
+app.get("/api/cart", protect, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+
+    if (!user) {
+      return res.status(404).json({
+        message: "User not found",
+      });
+    }
+
+    return res.json({
+      items: user.cart || [],
+    });
+  } catch (error) {
+    console.log("Fetch cart error:", error);
+
+    return res.status(500).json({
+      message: "Server error fetching cart",
+    });
   }
-  return res.json(medicine);
 });
 
-app.post("/api/medicines", (req, res) => {
-  const { name, brand, category, price, stock } = req.body;
-  if (!name || !brand || !category || price == null || stock == null) {
-    return res.status(400).json({ message: "Missing required medicine fields" });
+// ADD TO CART
+app.post("/api/cart/add", protect, async (req, res) => {
+  try {
+    const {
+      medicineId,
+      name,
+      brand,
+      price,
+      image,
+      prescription,
+    } = req.body;
+
+    const user = await User.findById(req.user.id);
+
+    if (!user) {
+      return res.status(404).json({
+        message: "User not found",
+      });
+    }
+
+    if (!user.cart) {
+      user.cart = [];
+    }
+
+    const existingItem = user.cart.find(
+      (item) => item.medicineId === Number(medicineId)
+    );
+
+    if (existingItem) {
+      existingItem.qty += 1;
+    } else {
+      user.cart.push({
+        medicineId: Number(medicineId),
+        name,
+        brand: brand || "",
+        price: Number(price),
+        image: image || "",
+        prescription: !!prescription,
+        qty: 1,
+      });
+    }
+
+    await user.save();
+
+    return res.json({
+      items: user.cart,
+    });
+  } catch (error) {
+    console.log("Add cart error:", error);
+
+    return res.status(500).json({
+      message: "Server error adding item",
+    });
   }
-
-  const newMedicine = {
-    id: Date.now(),
-    name,
-    brand,
-    category,
-    price: Number(price),
-    stock: Number(stock),
-    originalPrice: Number(price),
-    rating: 4,
-    reviews: 0,
-    image: `https://placehold.co/280x200/dbeafe/1d4ed8?text=${encodeURIComponent(name)}`,
-    prescription: false,
-    substitutes: [],
-    description: "",
-    dosage: "",
-    sideEffects: "",
-    manufacturer: "Unknown",
-    expiryDate: "2026-12",
-  };
-
-  medicines = [newMedicine, ...medicines];
-  return res.status(201).json(newMedicine);
 });
 
-app.delete("/api/medicines/:id", (req, res) => {
-  const id = Number(req.params.id);
-  const exists = medicines.some((item) => item.id === id);
-  if (!exists) {
-    return res.status(404).json({ message: "Medicine not found" });
+// UPDATE CART
+app.put("/api/cart/update", protect, async (req, res) => {
+  try {
+    const { medicineId, qty } = req.body;
+
+    const user = await User.findById(req.user.id);
+
+    if (!user) {
+      return res.status(404).json({
+        message: "User not found",
+      });
+    }
+
+    const existingItem = user.cart.find(
+      (item) => item.medicineId === Number(medicineId)
+    );
+
+    if (existingItem) {
+      existingItem.qty = Number(qty);
+    }
+
+    await user.save();
+
+    return res.json({
+      items: user.cart,
+    });
+  } catch (error) {
+    console.log("Update cart error:", error);
+
+    return res.status(500).json({
+      message: "Server error updating cart",
+    });
   }
-  medicines = medicines.filter((item) => item.id !== id);
-  return res.status(204).send();
 });
 
+// REMOVE ITEM
+app.delete("/api/cart/remove/:medicineId", protect, async (req, res) => {
+  try {
+    const { medicineId } = req.params;
+
+    const user = await User.findById(req.user.id);
+
+    if (!user) {
+      return res.status(404).json({
+        message: "User not found",
+      });
+    }
+
+    user.cart = user.cart.filter(
+      (item) => item.medicineId !== Number(medicineId)
+    );
+
+    await user.save();
+
+    return res.json({
+      items: user.cart,
+    });
+  } catch (error) {
+    console.log("Remove cart error:", error);
+
+    return res.status(500).json({
+      message: "Server error removing item",
+    });
+  }
+});
+
+// CLEAR CART
+app.delete("/api/cart/clear", protect, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+
+    if (!user) {
+      return res.status(404).json({
+        message: "User not found",
+      });
+    }
+
+    user.cart = [];
+
+    await user.save();
+
+    return res.json({
+      items: [],
+    });
+  } catch (error) {
+    console.log("Clear cart error:", error);
+
+    return res.status(500).json({
+      message: "Server error clearing cart",
+    });
+  }
+});
+
+// ======================
+// DEFAULT ROUTE
+// ======================
+app.get("/", (req, res) => {
+  res.send("MediNest Backend API Running");
+});
+
+// ======================
+// START SERVER
+// ======================
 app.listen(PORT, () => {
   console.log(`Backend running on http://localhost:${PORT}`);
 });

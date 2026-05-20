@@ -1,43 +1,45 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { login } from "../services/authApi";
 import "./Auth.css";
 
-const API = "http://localhost:5000/api";
-
 export default function Login() {
-  const [form, setForm] = useState({ email: "", password: "" });
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
   const navigate = useNavigate();
+
+  const [form, setForm] = useState({
+    email: "",
+    password: "",
+  });
+
+  const [loading, setLoading] = useState(false);
+
+  const [error, setError] = useState("");
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
     setError("");
-    setLoading(true);
 
     try {
-      const res = await fetch(`${API}/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
-      });
+      setLoading(true);
 
-      const data = await res.json();
+      const data = await login(
+        form.email,
+        form.password
+      );
 
-      if (!res.ok) {
-        // Show error message from backend (e.g. "Invalid email or password")
-        setError(data.message || "Login failed");
-        setLoading(false);
-        return;
-      }
+      console.log("LOGIN SUCCESS:", data);
 
-      // ✅ Save token & user info to localStorage
-      localStorage.setItem("token", data.token);
-      localStorage.setItem("user", JSON.stringify(data.user));
+      navigate("/");
+    } catch (error) {
+      console.log("FULL LOGIN ERROR:", error);
 
-      navigate("/"); // Redirect to Home
-    } catch (err) {
-      setError("Cannot connect to server. Make sure backend is running.");
+      setError(
+        error?.response?.data?.message ||
+        error?.message ||
+        "Login failed"
+      );
+    } finally {
       setLoading(false);
     }
   };
@@ -45,63 +47,117 @@ export default function Login() {
   return (
     <div className="page-wrapper auth-wrapper">
       <div className="auth-container">
+
         <div className="auth-brand">
-          <Link to="/" className="auth-logo">🏥 MediNest</Link>
+          <Link to="/" className="auth-logo">
+            🏥 MediNest
+          </Link>
+
           <h1>Welcome back</h1>
-          <p>Sign in to access your account and order history</p>
+
+          <p>
+            Sign in to access your account and order history
+          </p>
         </div>
 
-        {/* Show error if any */}
         {error && (
-          <div style={{
-            background: "#fee2e2", color: "#b91c1c",
-            padding: "10px 14px", borderRadius: "8px",
-            marginBottom: "16px", fontSize: "14px"
-          }}>
+          <div
+            style={{
+              background: "#fee2e2",
+              color: "#b91c1c",
+              padding: "10px 14px",
+              borderRadius: "8px",
+              marginBottom: "16px",
+              fontSize: "14px",
+            }}
+          >
             ❌ {error}
           </div>
         )}
 
         <form className="auth-form" onSubmit={handleSubmit}>
+
           <div className="form-group">
-            <label className="form-label">Email Address</label>
+            <label className="form-label">
+              Email Address
+            </label>
+
             <input
               className="form-input"
               type="email"
               placeholder="you@email.com"
               value={form.email}
-              onChange={(e) => setForm({ ...form, email: e.target.value })}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  email: e.target.value,
+                })
+              }
               required
             />
           </div>
+
           <div className="form-group">
-            <label className="form-label">Password</label>
+            <label className="form-label">
+              Password
+            </label>
+
             <input
               className="form-input"
               type="password"
-              placeholder="Your password"
+              placeholder="Enter password"
               value={form.password}
-              onChange={(e) => setForm({ ...form, password: e.target.value })}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  password: e.target.value,
+                })
+              }
               required
             />
           </div>
-          <div className="auth-options">
-            <label className="remember-me">
-              <input type="checkbox" /> Remember me
+
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              marginBottom: "20px",
+            }}
+          >
+            <label>
+              <input type="checkbox" />
+              {" "}Remember me
             </label>
-            <a href="#" className="forgot-link">Forgot password?</a>
+
+            <span
+              style={{
+                color: "#2563eb",
+                cursor: "pointer",
+              }}
+            >
+              Forgot password?
+            </span>
           </div>
+
           <button
             type="submit"
-            className={"btn btn-primary btn-lg btn-block" + (loading ? " loading" : "")}
+            className={
+              "btn btn-primary btn-lg btn-block" +
+              (loading ? " loading" : "")
+            }
             disabled={loading}
           >
-            {loading ? "Signing in..." : "Login →"}
+            {loading
+              ? "Logging in..."
+              : "Login →"}
           </button>
         </form>
 
         <p className="auth-switch">
-          Don't have an account? <Link to="/register">Register here</Link>
+          Don&apos;t have an account?{" "}
+          <Link to="/register">
+            Register here
+          </Link>
         </p>
       </div>
     </div>

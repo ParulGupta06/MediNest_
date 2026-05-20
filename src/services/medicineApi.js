@@ -1,37 +1,32 @@
-const API_BASE_URL = "http://localhost:5000/api";
+import axios from "axios";
 
-async function request(path, options = {}) {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    headers: { "Content-Type": "application/json" },
-    ...options,
-  });
+const API = "http://localhost:7000/api";
 
-  if (!response.ok) {
-    throw new Error(`API request failed: ${response.status}`);
-  }
+const getHeaders = () => {
+  const token = localStorage.getItem("token");
+  return {
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  };
+};
 
-  if (response.status === 204) {
-    return null;
-  }
-
-  return response.json();
+export async function getMedicines() {
+  const response = await axios.get(`${API}/medicines`);
+  return response.data;
 }
 
-export function getMedicines() {
-  return request("/medicines");
+export async function getMedicineById(id) {
+  const response = await axios.get(`${API}/medicines/${id}`);
+  return response.data;
 }
 
-export function getMedicineById(id) {
-  return request(`/medicines/${id}`);
+export async function createMedicine(payload) {
+  const response = await axios.post(`${API}/medicines`, payload, getHeaders());
+  return response.data;
 }
 
-export function createMedicine(payload) {
-  return request("/medicines", {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
-}
-
-export function deleteMedicine(id) {
-  return request(`/medicines/${id}`, { method: "DELETE" });
+export async function deleteMedicine(id) {
+  const response = await axios.delete(`${API}/medicines/${id}`, getHeaders());
+  return response.data;
 }

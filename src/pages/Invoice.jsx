@@ -1,32 +1,62 @@
+import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
+import { getOrderById } from "../services/orderApi";
 import "./Invoice.css";
-
-const mockOrders = {
-  "MN-20240301-001": {
-    id: "MN-20240301-001", date: "2024-03-01", deliveredOn: "2024-03-02",
-    customer: { name: "Priya Sharma", email: "priya@email.com", phone: "+91 98765 43210", address: "Flat 4B, Sunrise Apartments, Bandra West, Mumbai – 400050" },
-    items: [{ name: "Paracetamol 500mg", brand: "Calpol", qty: 2, price: 45 }, { name: "Vitamin D3 60000 IU", brand: "D-Rise", qty: 1, price: 140 }],
-    payment: "UPI – 9876543210@ybl",
-  },
-  "MN-20240305-002": {
-    id: "MN-20240305-002", date: "2024-03-05", deliveredOn: null,
-    customer: { name: "Rahul Verma", email: "rahul@email.com", phone: "+91 87654 32109", address: "12, Green Park Colony, Pune – 411001" },
-    items: [{ name: "Azithromycin 500mg", brand: "Zithromax", qty: 1, price: 180 }],
-    payment: "Credit Card – **** 4321",
-  },
-};
 
 export default function Invoice() {
   const { id } = useParams();
-  const rawId = id || "MN-20240301-001";
-  const order = mockOrders[rawId] || mockOrders["MN-20240301-001"];
+  const [order, setOrder] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  const subtotal = order.items.reduce((a, i) => a + i.price * i.qty, 0);
-  const delivery = subtotal >= 499 ? 0 : 50;
-  const tax = Math.round(subtotal * 0.05);
-  const total = subtotal + delivery + tax;
+  useEffect(() => {
+    if (id) {
+      getOrderById(id)
+        .then(data => {
+          setOrder(data);
+          setLoading(false);
+        })
+        .catch(err => {
+          console.error("Failed to load invoice details:", err);
+          setError("Invoice not found or unauthorized.");
+          setLoading(false);
+        });
+    } else {
+      setError("Invalid Invoice ID.");
+      setLoading(false);
+    }
+  }, [id]);
 
   const handlePrint = () => window.print();
+
+  if (loading) {
+    return (
+      <div className="page-wrapper" style={{ textAlign: "center", paddingTop: "120px" }}>
+        <h2>Loading Invoice...</h2>
+      </div>
+    );
+  }
+
+  if (error || !order) {
+    return (
+      <div className="page-wrapper" style={{ textAlign: "center", paddingTop: "120px", color: "var(--red)" }}>
+        <h2>Error</h2>
+        <p>{error || "Could not retrieve invoice details."}</p>
+        <Link to="/orders" className="btn btn-primary" style={{ marginTop: "20px" }}>Back to Orders</Link>
+      </div>
+    );
+  }
+
+  const customerName = order.user?.name || "Customer";
+  const customerEmail = order.user?.email || "";
+  const customerPhone = order.user?.phone || "";
+  const customerAddress = order.shippingAddress || order.address || "No address provided";
+
+  const orderDate = new Date(order.createdAt).toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric"
+  });
 
   return (
     <div className="page-wrapper">
@@ -46,23 +76,23 @@ export default function Invoice() {
             </div>
             <div className="invoice-meta">
               <div className="invoice-title">TAX INVOICE</div>
-              <div className="invoice-number">#{order.id}</div>
-              <div className="invoice-date">Date: {order.date}</div>
-              {order.deliveredOn && <div className="invoice-date">Delivered: {order.deliveredOn}</div>}
+              <div className="invoice-number">#{order._id || order.id}</div>
+              <div className="invoice-date">Date: {orderDate}</div>
+              <div className="invoice-date">Status: <strong>{order.status}</strong></div>
             </div>
           </div>
 
           <div className="invoice-parties">
             <div className="party-block">
               <h4>Bill To:</h4>
-              <strong>{order.customer.name}</strong>
-              <p>{order.customer.address}</p>
-              <p>{order.customer.email}</p>
-              <p>{order.customer.phone}</p>
+              <strong>{customerName}</strong>
+              <p>{customerAddress}</p>
+              {customerEmail && <p>{customerEmail}</p>}
+              {customerPhone && <p>{customerPhone}</p>}
             </div>
             <div className="party-block">
               <h4>Payment Method:</h4>
-              <p>{order.payment}</p>
+              <p>{order.paymentMethod || "Online Payment"}</p>
               <div className="invoice-status">✅ PAID</div>
             </div>
           </div>
@@ -83,7 +113,7 @@ export default function Invoice() {
                 <tr key={i}>
                   <td>{i + 1}</td>
                   <td>{item.name}</td>
-                  <td>{item.brand}</td>
+                  <td>{item.brand || "Generic"}</td>
                   <td>{item.qty}</td>
                   <td>₹{item.price}</td>
                   <td>₹{item.price * item.qty}</td>
@@ -95,10 +125,10 @@ export default function Invoice() {
           <div className="invoice-totals">
             <div className="totals-spacer"></div>
             <div className="totals-block">
-              <div className="total-row"><span>Subtotal</span><span>₹{subtotal}</span></div>
-              <div className="total-row"><span>Delivery</span><span>{delivery === 0 ? "FREE" : "₹"+delivery}</span></div>
-              <div className="total-row"><span>GST (5%)</span><span>₹{tax}</span></div>
-              <div className="total-row grand"><span>Total Paid</span><span>₹{total}</span></div>
+              <div className="total-row"><span>Subtotal</span><span>₹{order.subtotal}</span></div>
+              <div className="total-row"><span>Delivery</span><span>{order.delivery === 0 ? "FREE" : "₹"+order.delivery}</span></div>
+              <div className="total-row"><span>GST (5%)</span><span>₹{order.tax}</span></div>
+              <div className="total-row grand"><span>Total Paid</span><span>₹{order.total}</span></div>
             </div>
           </div>
 

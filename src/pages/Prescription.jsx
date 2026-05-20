@@ -1,17 +1,57 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { submitPrescription } from "../services/prescriptionApi";
+import { Link } from "react-router-dom";
 import "./Prescription.css";
 
 export default function Prescription() {
   const [form, setForm] = useState({ name: "", email: "", phone: "", notes: "" });
   const [file, setFile] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
   const [submitted, setSubmitted] = useState(false);
+
+  // Pre-fill user details if logged in
+  useEffect(() => {
+    const userStr = localStorage.getItem("user");
+    if (userStr) {
+      try {
+        const user = JSON.parse(userStr);
+        setForm(prev => ({
+          ...prev,
+          name: user.name || "",
+          email: user.email || ""
+        }));
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  }, []);
 
   const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!file) return alert("Please upload a prescription file.");
-    setSubmitted(true);
+
+    setLoading(true);
+    setError("");
+
+    try {
+      const formData = new FormData();
+      formData.append("name", form.name);
+      formData.append("email", form.email);
+      formData.append("phone", form.phone);
+      formData.append("notes", form.notes);
+      formData.append("prescription", file);
+
+      await submitPrescription(formData);
+      setLoading(false);
+      setSubmitted(true);
+    } catch (err) {
+      console.error(err);
+      setError(err.response?.data?.message || "Failed to upload prescription. Please verify the file type and try again.");
+      setLoading(false);
+    }
   };
 
   if (submitted) return (
@@ -20,7 +60,16 @@ export default function Prescription() {
         <div className="success-icon">✅</div>
         <h2>Prescription Submitted!</h2>
         <p>Our pharmacist will review your prescription within 30 minutes and contact you at <strong>{form.email}</strong></p>
-        <button className="btn btn-primary btn-lg" onClick={() => { setSubmitted(false); setForm({ name:"",email:"",phone:"",notes:"" }); setFile(null); }}>Submit Another</button>
+        <button 
+          className="btn btn-primary btn-lg" 
+          onClick={() => { 
+            setSubmitted(false); 
+            setForm({ name: "", email: "", phone: "", notes: "" }); 
+            setFile(null); 
+          }}
+        >
+          Submit Another
+        </button>
       </div>
     </div>
   );
@@ -45,6 +94,15 @@ export default function Prescription() {
         <div className="rx-layout">
           <form className="rx-form card" onSubmit={handleSubmit}>
             <h2>Patient Details</h2>
+            {error && (
+              <div style={{
+                background: "#fee2e2", color: "#b91c1c",
+                padding: "10px 14px", borderRadius: "8px",
+                marginBottom: "16px", fontSize: "14px"
+              }}>
+                ❌ {error}
+              </div>
+            )}
             <div className="form-group">
               <label className="form-label">Full Name *</label>
               <input className="form-input" name="name" value={form.name} onChange={handleChange} placeholder="Your full name" required />
@@ -72,7 +130,9 @@ export default function Prescription() {
               <label className="form-label">Additional Notes</label>
               <textarea className="form-input" name="notes" value={form.notes} onChange={handleChange} placeholder="Any specific requirements or allergies..." rows={3} />
             </div>
-            <button type="submit" className="btn btn-primary btn-lg btn-block">Submit Prescription →</button>
+            <button type="submit" className="btn btn-primary btn-lg btn-block" disabled={loading}>
+              {loading ? "Submitting prescription..." : "Submit Prescription →"}
+            </button>
           </form>
           <div className="rx-info">
             <div className="rx-info-card">

@@ -33,7 +33,7 @@ export default function MedicineCard({ medicine, onAddToCart }) {
           )}
         </div>
         <div className="med-card-actions">
-          <Link to={`/medicines/${medicine.id}`} className="btn btn-outline btn-sm">View Details</Link>
+          <Link to={`/medicines/${medicine._id || medicine.id}`} className="btn btn-outline btn-sm">View Details</Link>
           <button
             className="btn btn-primary btn-sm"
             onClick={() => onAddToCart(medicine)}

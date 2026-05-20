@@ -1,40 +1,65 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { getOrders } from "../services/orderApi";
 import "./Orders.css";
-
-const mockOrders = [
-  {
-    id: "MN-20240301-001", date: "2024-03-01", status: "Delivered",
-    items: [{ name: "Paracetamol 500mg", qty: 2, price: 45 }, { name: "Vitamin D3 60000 IU", qty: 1, price: 140 }],
-    total: 280, address: "123 Health St, Mumbai", deliveredOn: "2024-03-02",
-  },
-  {
-    id: "MN-20240305-002", date: "2024-03-05", status: "Shipped",
-    items: [{ name: "Azithromycin 500mg", qty: 1, price: 180 }],
-    total: 230, address: "123 Health St, Mumbai", deliveredOn: null,
-  },
-  {
-    id: "MN-20240308-003", date: "2024-03-08", status: "Processing",
-    items: [{ name: "Cetirizine 10mg", qty: 3, price: 35 }, { name: "Omeprazole 20mg", qty: 1, price: 75 }],
-    total: 230, address: "123 Health St, Mumbai", deliveredOn: null,
-  },
-  {
-    id: "MN-20240309-004", date: "2024-03-09", status: "Pending",
-    items: [{ name: "Metformin 500mg", qty: 2, price: 95 }],
-    total: 240, address: "123 Health St, Mumbai", deliveredOn: null,
-  },
-];
 
 const STEPS = ["Pending", "Processing", "Shipped", "Delivered"];
 
-const statusColor = { Delivered: "green", Shipped: "blue", Processing: "yellow", Pending: "red" };
+const statusColor = { 
+  Delivered: "green", 
+  Shipped: "blue", 
+  Processing: "yellow", 
+  Pending: "red" 
+};
 
 export default function Orders() {
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [selected, setSelected] = useState(null);
 
+  useEffect(() => {
+    getOrders()
+      .then(data => {
+        setOrders(data);
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error("Failed to load orders:", err);
+        setError("Could not load your orders. Please log in or try again.");
+        setLoading(false);
+      });
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="page-wrapper" style={{ textAlign: "center", paddingTop: "120px" }}>
+        <h2>Loading orders...</h2>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="page-wrapper" style={{ textAlign: "center", paddingTop: "120px", color: "var(--red)" }}>
+        <h2>Error</h2>
+        <p>{error}</p>
+        <Link to="/login" className="btn btn-primary" style={{ marginTop: "20px" }}>Login</Link>
+      </div>
+    );
+  }
+
   if (selected) {
-    const order = mockOrders.find(o => o.id === selected);
+    const order = orders.find(o => (o._id || o.id) === selected);
+    if (!order) return null;
+
     const stepIdx = STEPS.indexOf(order.status);
+    const orderDate = new Date(order.createdAt).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "long",
+      day: "numeric"
+    });
+
     return (
       <div className="page-wrapper">
         <div className="container orders-container">
@@ -42,8 +67,8 @@ export default function Orders() {
           <div className="order-detail-card">
             <div className="order-detail-header">
               <div>
-                <h2>{order.id}</h2>
-                <p className="order-meta">Placed on {order.date} · {order.items.length} item(s)</p>
+                <h2>Order ID: #{order._id || order.id}</h2>
+                <p className="order-meta">Placed on {orderDate} · {order.items.length} item(s)</p>
               </div>
               <span className={"status-pill status-" + statusColor[order.status]}>{order.status}</span>
             </div>
@@ -68,13 +93,19 @@ export default function Orders() {
                     <div className="order-item-icon">💊</div>
                     <div className="order-item-info">
                       <strong>{item.name}</strong>
-                      <span>Qty: {item.qty}</span>
+                      <span>Brand: {item.brand} | Qty: {item.qty}</span>
                     </div>
                     <div className="order-item-price">₹{item.price * item.qty}</div>
                   </div>
                 ))}
                 <div className="order-total-row">
-                  <span>Delivery</span><span className="free">FREE</span>
+                  <span>Subtotal</span><span>₹{order.subtotal}</span>
+                </div>
+                <div className="order-total-row">
+                  <span>Delivery</span><span>{order.delivery === 0 ? "FREE" : "₹" + order.delivery}</span>
+                </div>
+                <div className="order-total-row">
+                  <span>GST (5%)</span><span>₹{order.tax}</span>
                 </div>
                 <div className="order-total-row grand">
                   <span>Total Paid</span><span>₹{order.total}</span>
@@ -83,22 +114,20 @@ export default function Orders() {
               <div className="order-info-section">
                 <div className="info-block">
                   <h4>📍 Delivery Address</h4>
-                  <p>{order.address}</p>
+                  <p>{order.shippingAddress || order.address}</p>
                 </div>
-                {order.deliveredOn && (
-                  <div className="info-block">
-                    <h4>✅ Delivered On</h4>
-                    <p>{order.deliveredOn}</p>
-                  </div>
-                )}
                 <div className="info-block">
-                  <h4>💳 Payment</h4>
-                  <p>Paid online · ₹{order.total}</p>
+                  <h4>💳 Payment Method</h4>
+                  <p>{order.paymentMethod || "Online Payment"}</p>
+                </div>
+                <div className="info-block">
+                  <h4>📦 Order Status</h4>
+                  <p>{order.status}</p>
                 </div>
                 <Link
-                  to={"/invoice/" + order.id}
+                  to={"/invoice/" + (order._id || order.id)}
                   className="btn btn-outline btn-block"
-                  style={{marginTop: "16px"}}
+                  style={{ marginTop: "16px" }}
                 >
                   📄 Download Invoice
                 </Link>
@@ -116,34 +145,44 @@ export default function Orders() {
         <div className="container"><h1>My Orders</h1><p>Track and manage all your medicine orders</p></div>
       </div>
       <div className="container orders-container">
-        {mockOrders.length === 0 ? (
+        {orders.length === 0 ? (
           <div className="empty-orders">
             <span>📦</span>
             <h3>No orders yet</h3>
+            <p>Looks like you haven't placed any orders yet. Browse our selection and start shopping!</p>
             <Link to="/medicines" className="btn btn-primary">Shop Now</Link>
           </div>
         ) : (
           <div className="orders-list">
-            {mockOrders.map(order => (
-              <div className="order-card" key={order.id} onClick={() => setSelected(order.id)}>
-                <div className="order-card-top">
-                  <div>
-                    <div className="order-id">{order.id}</div>
-                    <div className="order-date">Placed: {order.date}</div>
+            {orders.map(order => {
+              const currentId = order._id || order.id;
+              const formattedDate = new Date(order.createdAt).toLocaleDateString("en-US", {
+                year: "numeric",
+                month: "short",
+                day: "numeric"
+              });
+
+              return (
+                <div className="order-card" key={currentId} onClick={() => setSelected(currentId)}>
+                  <div className="order-card-top">
+                    <div>
+                      <div className="order-id">#{currentId}</div>
+                      <div className="order-date">Placed: {formattedDate}</div>
+                    </div>
+                    <span className={"status-pill status-" + statusColor[order.status]}>{order.status}</span>
                   </div>
-                  <span className={"status-pill status-" + statusColor[order.status]}>{order.status}</span>
+                  <div className="order-card-items">
+                    {order.items.map((item, i) => (
+                      <span key={i} className="order-item-tag">💊 {item.name} ×{item.qty}</span>
+                    ))}
+                  </div>
+                  <div className="order-card-footer">
+                    <span className="order-total-label">Total: <strong>₹{order.total}</strong></span>
+                    <span className="view-details-link">View Details →</span>
+                  </div>
                 </div>
-                <div className="order-card-items">
-                  {order.items.map((item, i) => (
-                    <span key={i} className="order-item-tag">💊 {item.name} ×{item.qty}</span>
-                  ))}
-                </div>
-                <div className="order-card-footer">
-                  <span className="order-total-label">Total: <strong>₹{order.total}</strong></span>
-                  <span className="view-details-link">View Details →</span>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

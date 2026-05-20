@@ -45,7 +45,7 @@ export default function MedicineDetail({ onAddToCart }) {
     </div>
   );
 
-  const subs = medicines.filter((m) => medicine.substitutes.includes(m.id));
+  const subs = medicines.filter((m) => medicine.substitutes.includes(m._id) || medicine.substitutes.includes(m.id));
   const stars = "★".repeat(Math.floor(medicine.rating)) + "☆".repeat(5 - Math.floor(medicine.rating));
   const discount = Math.round(((medicine.originalPrice - medicine.price) / medicine.originalPrice) * 100);
 
