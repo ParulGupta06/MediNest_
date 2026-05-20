@@ -4,7 +4,7 @@ const API = "https://medinest-t13z.onrender.com";
 
 export const login = async (email, password) => {
   try {
-    const response = await axios.post(`${API}/auth/login`, {
+    const response = axios.post(`${API}/api/auth/login`, {
       email,
       password,
     });
