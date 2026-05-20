@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API = "http://localhost:7000/api";
+const API = "https://medinest-t13z.onrender.com";
 
 export const login = async (email, password) => {
   try {

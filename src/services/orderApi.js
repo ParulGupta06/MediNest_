@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API = "http://localhost:7000/api";
+const API = "https://medinest-t13z.onrender.com";
 
 const getHeaders = () => {
   const token = localStorage.getItem("token");
